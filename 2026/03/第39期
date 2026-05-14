@@ -1,0 +1,44 @@
+### 图解注意力机制的变迁
+https://magazine.sebastianraschka.com/p/visual-attention-variants
+对应上周的 LLM Gallery 的讲解。这篇文章系统梳理了近几年主流 LLM 的注意力变体及其取舍，核心是在长上下文场景里在算力 / 内存效率与建模能力之间做工程权衡。
+文章从经典 Transformer 出发，用一条主线讲“注意力是怎么一步步为长上下文和大模型被改造的”，重点放在目前真实在 SOTA 开源模型里落地的几类方案，而不是论文花活。
+首先，它回顾了标准 Multi‑Head Attention (MHA) 和它的演化版本 Grouped‑Query Attention (GQA)。MHA 建模效果更好，但 KV cache 显存占用随 context 长度线性爆炸；GQA 通过让多个 query head 共享 K/V head，大幅减少 KV cache，几乎不改推理栈，所以在 2026 年依然是「工业标准」：工程实现简单、训练稳定、调参负担小。很多新 dense 模型（Llama3、Gemma3 等）依旧选它作为默认。
+接着是 Multi‑Head Latent Attention (MLA)。和 GQA 不同，它不是少存，而是「压缩后再存」：在 KV cache 里只放一个压缩 latent 表示，推理时再恢复。这在 DeepSeek‑V2/V3/R1 里被证明：在同等 KV 内存预算下，MLA 可以比 GQA 更接近甚至超过 MHA 的建模质量，因此在大模型 + 超长上下文（>100B 参数、超长 context）上逐渐成为更优解。不过作者也提醒，MLA 实现更复杂，对规模阈值比较敏感，小模型反而 GQA 更省心。
+在长上下文效率上，文章区分了两类思路：
+一类是像 Sliding Window Attention (SWA) 这种「局部化」：每个 token 只看一段滑动窗口（local attention），再配少量全局层。Gemma3 是典型例子：把 local:global 比例拉高、窗口缩短，但 perplexity 损失很小，换来巨大算力节省。SWA 常和 GQA 组合，因为一个管“看多少 token”，一个管“每个 token 存多少 KV”。
+另一类是 DeepSeek 系的 DeepSeek Sparse Attention (DSA)：看起来和 SWA 一样是“只看子集”，但子集不是固定局部窗口，而是通过 Lightning indexer + selector 学习出来的稀疏模式（top‑k 重要 token）。配合 MLA 使用，一个优化 KV 表示，一个优化「该看谁」，针对超长上下文推理成本做双重削减。缺点是实现复杂、生态不成熟，所以扩散速度远慢于 GQA。
+之后文章讨论了 Gated Attention：这更像是对 full attention block 的稳定性增强，而不是新家族。主要在 hybrid 架构中使用，用 gate 控制注意力输出在 residual 中的权重，加上零均值 QK‑Norm 和部分 RoPE，目的是让保留的少数 full‑attention 层在大混合堆栈里「更可控」。Qwen3‑Next / 3.5 和 Trinity 都用了类似设计。
+真正的「大趋势」部分在 Hybrid Attention / Hybrid Architectures。作者把它定义为：保留 Transformer 骨架，但把大部分昂贵的 full attention 换成线性 / state‑space 序列模块，只在少量层用全注意力做精确内容检索。Qwen3‑Next 是标志性起点：3 层 Gated DeltaNet（线性 / fast‑weight 风格）配 1 层 Gated Attention，Qwen3.5 把这条线正式并入旗舰系列，等于用产品线投票肯定这种 hybrid 路线。
+不同家族在这个 pattern 上换零件：
+  Kimi 线用 Kimi Delta Attention + Gated MLA；Ling 2.5 用 Lightning Attention + MLA，把轻量侧换成更简单的 recurrent linear attention，强调 32k context 吞吐上的实际提速；Nemotron 系则走更极端的 Mamba‑Transformer hybrid，大部分层用 Mamba‑2 state‑space，attention 只在少数层出现，再叠加 latent MoE 和多 token 预测。
+作者的 meta 结论偏工程视角而不是榜单党：
+1. 目前真正“主力”的还是 GQA +（可选）SWA 这种「经典但好用」组合，推理框架优化成熟，本地跑 tok/s 也更好。
+2. MLA + Sparse / Hybrid 架构是明显的长上下文效率方向，尤其适合 agent 场景和巨大上下文，但实现复杂、serve 栈优化还不够，整体生态没完全 ready。
+3. Hybrid 架构现在更像是「效率产品」而不是「纯模型效果冠军」。评估“最佳架构”没意义，因为没有统一、可比的数据和训练设定，只能就“具体已训练出来的模型 + 具体任务”做选择。
+最后他自己比较期待两件事：一是新的 Mamba‑3 层融入上述 hybrid（替换 Gated DeltaNet 一类模块），二是 Attention Residuals 在更多架构中普及。短期他仍更偏好在本地使用「经典 GQA 方案」如 GPT‑OSS 一类，因为推理栈更成熟、吞吐更稳；但也明显把 DeepSeek 看作过去两年里最稳定的趋势引领者，期待 DeepSeek‑V4 把 attention 设计再往前推一轮。
+整体上，这篇更像是给工程 /架构读者的「注意力设计决策图」，帮你在 MHA → GQA → MLA、SWA vs Sparse、Transformer vs Hybrid/Mamba 这些路径之间看清：谁在真实大模型里被用、为什么用、以及各自在哪些 scale / 场景下值得你在自己的 stack 里动一次大手术。
+
+### OpenAI | 使用 Skills 来维护开源软件
+https://developers.openai.com/blog/skills-agents-sdk
+文章讲的是用 skills + AGENTS.md + GitHub Actions，把 OpenAI Agents SDK 的 OSS 维护流程标准化、自动化，从而显著提升 PR 吞吐和可靠性。虽然是讲开源的，但是整套流程对于闭源软件都可以映射过来，企业内部项目也可以参考一下思路
+这篇文章以 OpenAI Agents SDK 的 Python / TypeScript 仓库为例，讲了一套「用 Codex + skills 驱动的工程工作流体系」，核心是：把知识和流程固化在仓库里，让模型来执行和判断，而不是每次从零 prompt。
+首先，它定义了一个很清晰的结构：仓库根目录有 ‎⁠AGENTS.md⁠，用来写「仓库级规则」和「什么时候必须调用哪些技能」；‎⁠.agents/skills/⁠ 目录下是具体的 skills，每个 skill 是一个小的 workflow 包，包含 ‎⁠SKILL.md⁠（描述、触发条件、输出期望）和可选的 ‎⁠scripts/⁠、‎⁠references/⁠、‎⁠assets/⁠。Codex 先只看 ‎⁠name⁠ 和 ‎⁠description⁠ 做 routing，需要时才展开 ‎⁠SKILL.md⁠ 和脚本，这就是 progressive disclosure。
+在具体 skills 设计上，文章列举了很多有代表性的 workflow：比如 ‎⁠code-change-verification⁠ 把格式化、lint、typecheck、测试等「验证标准」编码为 skill；‎⁠docs-sync⁠ 和 ‎⁠test-coverage-improver⁠ 是 report-first 类型，不直接改代码，而是先分析差异、给出优先级建议，再征求确认；‎⁠pnpm-upgrade⁠、‎⁠changeset-validation⁠ 则是 JavaScript monorepo 特有的维护流程，用来确保 changeset 和包版本、变更内容完全对齐。‎⁠AGENTS.md⁠ 会用 if/then 形式强制在合适的时机调用这些 skills，比如改 runtime 或 API 必须先跑 ‎⁠，改代码就要跑‎code-change-verification⁠，结束工作前用 ‎⁠$pr-draft-summary⁠ 生成 PR 草稿。
+文章反复强调 ‎⁠SKILL.md⁠ 里的 ‎⁠description⁠ 是 routing 的关键信号，不能只写「做 X」，还要写清「在什么情况下触发」「大致输出是什么」。比如「当 runtime/test/build 行为改变时，运行强制验证栈」比简单的「运行验证」更能帮助模型正确选择技能。
+在实现层面，它主张把「需要模型判断的部分」留给模型，比如解读源码意图、比对日志和预期行为、判断 release diff 的兼容性风险、写出维护者看得懂的结论；而把确定性的 shell 任务放进 ‎⁠scripts/⁠：跑固定顺序的验证命令、执行 examples、收集 logs、准备 rerun 文件、拉取上一个 release tag 等。这种 split 避免模型每次重新「发明」同一套命令。
+文章重点展开了三个大场景。第一个是 examples 的自动集成测试：通过为 examples 增加 auto 模式（自动回答交互、跳过复杂环境的例子、输出结构化日志和 rerun 文件），再用 skill 驱动 Codex 去逐个比对源码和对应日志，判断行为是否符合预期，而不是只看 exit code。这在 JS 仓库里还叠了一层 ‎⁠integration-tests⁠，通过 Verdaccio 本地 registry，验证「发布 → 安装 → 在 Node/Bun/Deno/Workers/Vite React 等环境中运行」这一完整链路。
+第二个是 release-check：‎⁠final-release-review⁠ 会先找上一个 tag，然后对比最新 main 的 diff，让 Codex 按 API 兼容性、行为回归、缺失的迁移说明等维度做系统性 review，并给出「是否可以发布」的结论和具体证据、后续 checklist。默认是「可以发布」，只有发现真实问题才会打红灯，降低 false positive。
+第三个是把这些 workflow 带入 CI：先在本地把 skill 打磨稳定，再通过 Codex GitHub Action 接入 CI。这里强调安全实践：限制触发者和事件、对来自 PR/issue 的输入做清洗、用受限权限运行 Codex，避免 write-capable workflow 在不可信输入和高权限环境下产生风险。
+最后，文章也谈了 Codex 在 PR review 中的角色：对于常规 bug、回归、缺失测试，已经足够可靠，可以作为必经的 correctness reviewer，极大提升 throughput。但对于架构 / API 设计、产品行为、兼容策略、命名与沟通等，需要人类维护者做决策，Codex 只是提供分析和建议。这种分工也可以通过 ‎⁠AGENTS.md⁠ 编码，让「什么算 correctness、什么需要人决策」变成仓库规则，而不是隐性文化。
+整体来看，这篇文章给出了一套可复用的模式：用 ‎⁠AGENTS.md⁠ 声明规则和触发条件，用精心写好的 ‎⁠description⁠ 做 routing，用 ‎⁠scripts/⁠ 固化机械步骤，把模型的「理解、比较、判断和说明」能力插在这些流程的关键节点，再通过 GitHub Action 把成熟 workflow 接入 CI，让 OSS 维护从「散落在维护者脑子里的 implicit knowledge」变成可重复、可审计的工作流。
+
+### Anthropic | 为长期运行的 agentic 工程设计 Harness
+https://www.anthropic.com/engineering/harness-design-long-running-apps
+这篇文章讲的是：通过精心设计多智能体 harness，可以让 Claude 在前端设计和长时间全栈开发中表现远超“单 agent 直接上”。
+文章围绕一个核心观点展开：harness 设计几乎和模型本身一样重要，尤其在长时间运行、要求高质量产出的 agentic coding 场景中。作者用两个 case——前端设计和长时间全栈应用开发——一步步拆开他们是怎么把 Claude 推到新极限的。
+在前端设计部分，问题是：Claude 默认会生成“能用但很平”的 UI，而且自我评分时还会高估自己。作者于是设计了一个受 GAN 启发的双 agent 结构：一个 generator 负责做设计，一个 evaluator 只负责打分和挑毛病。关键突破在于，把“好不好看”这类主观评价，拆成四个可打分的维度：design quality、originality、craft、functionality，并且刻意给 design quality 和 originality 更高权重、明确惩罚“AI slop” 风格（模板、默认组件、紫渐变白卡片那一挂）。Evaluator 通过 Playwright MCP 真正“点页面”、截图、逐项评分和写长评，generator 再按反馈在 5–15 个 iteration 中不断改。结果是：哪怕第一版就比零提示 baseline 好不少，后续很多迭代还会出现明显的“创意跳跃”（比如荷兰美术馆站从常规 dark landing page 突然变成 CSS 3D 空间展厅、门洞导航的那种）。
+在全栈开发部分，他们把这个模式扩展成三 agent 架构：planner、generator、evaluator。前一代长跑 harness 用的是 Sonnet 4.5，需要 context reset + artifact handoff 来对抗长上下文“焦虑”；新版用 Opus 4.5/4.6 后，模型本身的长上下文和规划能力提升，逐步去掉了一些复杂 scaffolding，比如强制的 context reset、严格的 sprint 切分等，但保留/重塑了真正“有增益”的部分。Planner 接收 1–4 句 prompt，扩写成有雄心但不死抠实现细节的产品 spec（顺带自动织入 AI feature、前端设计语言）；generator 按 feature 或更长的连续 build 阶段用 React + Vite + FastAPI + DB 堆出整个 app，并做初步 self-eval；evaluator 再用 Playwright 当 QA，严格对照“sprint 合同”或最终 spec 去点 UI、打 API、看数据库，并给出细粒度 bug 报告和评分，不达标就打回重做。
+他们用一个“2D retro game maker”和一个浏览器内 DAW 当 benchmark。对比同一个 prompt，单 agent 跑 20 分钟花 9 美金，表面上看还不错，但核心功能经常是“看着像，实际不能用”（比如实体出不来、输入无响应、关键 wiring 断了）；多 agent harness 虽然要跑 4–6 小时、花 100–200 美金，但做出的东西在功能完整性、交互流畅度、UI 精致度和 bug 密度上明显在另一个层级，还能自动织入一堆 AI 协同功能（比如关卡/素材自动生成、项目中自带能驱动自身 UI 的 agent）。
+在迭代 harness 的过程中，作者强调了一个 meta 经验：每一块 scaffolding 都隐含一个假设——“模型自己做不到这件事，需要额外结构来兜底”。随着模型进化，这些假设会过期，所以要不断用新模型做对照实验，一块一块拆掉，看哪些结构是真正 load-bearing，哪些现在只是负担。例如在 Opus 4.6 上，一些原来必须依赖 evaluator 的场景，现在 generator 自己就能做得很稳，评估 agent 就只对“模型能力边界外”的部分仍然有高性价比。
+整体结论是：随着模型能力提高，有些 scaffolding 可以省略，但“有趣的 harness 组合空间”不会缩小，只会平移。对于 AI 工程师来说，真正的工作不是一味堆复杂度，而是持续观察模型 trace，在实际任务上验证、简化、再组合，找到下一代有效的 planner–builder–evaluator 结构，把模型单次调用无法完成的复杂目标，拆成模型 + harness 能够完成的系统级能力。
+h2
