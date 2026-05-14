@@ -1,0 +1,20 @@
+### LLM 架构展
+https://sebastianraschka.com/llm-architecture-gallery/
+总结了 40 个大模型的架构
+
+### Lessons from Building Claude Code How We Use Skills
+https://x.com/trq212/status/2033949937936085378
+Skills 的一些原则。
+1. 不要写太多，重点写非公开知识、可能陷入问题的 bad case 等等
+2. 避免明显的共识还要写约束，早年那种分步骤写的 Prompt 现在可能会反而限制 Agent 的适应能力
+3. Skills 的描述写的是何时触发，而不是是什么
+4. 可以直接把配置写进 Skills 的 config.json 或者让模型调用 AskUserQuestion 的 tool
+  
+### Your Brain on ChatGPT Accumulation of Cognitive Debt when Using an AI Assistant for Essay Writing Task
+https://www.media.mit.edu/publications/your-brain-on-chatgpt/
+可以用 AI 学，但尽量不要用 AI “写”
+
+### How to Prompt Reasoning Models Effectively
+https://www.artificialintelligencemadesimple.com/p/how-to-prompt-reasoning-models-effectively
+CoT 提示词也不管用了。LLM 进化太快了
+
