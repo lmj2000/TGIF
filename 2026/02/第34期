@@ -1,0 +1,20 @@
+### 汇总一下近期的模型更新
+- GLM 5
+- minimax M2.5
+- kimi K2.5
+- Opus 4.6
+- GPT-5.3-spark
+- gemini deep think
+
+感觉最惊喜的居然是 Gemini 这个老实孩子
+严格意义上不算发布了新模型，是个 deep think 的模式，但是居然这么猛，HLE 超了第二名 Opus 4.6 8 分。经典的“鹈鹕骑自行车”测评也炸了
+
+### My AI Adoption Journey
+https://mitchellh.com/writing/my-ai-adoption-journey
+ghostty 作者的 AI 历程，我觉得关于 “驯服 AI” 讲得很实在，比起现在动不动就“随手用 AI 做应用，两天上一个产品”实在很多
+
+### Evaluating AGENTS.md Are Repository-Level Context Files Helpful for Coding Agents?
+https://arxiv.org/html/2602.11988v1#S6
+挺尴尬的一篇研究，让 Agent 自己读库总结的详尽 AGENTS.md 原来只是人类的一厢情愿
+其实真实效果并不好，几乎无提升的同时，token 消耗还提升了不少。难怪之前看到说 Coding Agent 其实有时候会可以忽略 AGENTS.ms ，效果会有点滥用
+建议是 AGENTS.md 只写核心原则，可以仓库无关
