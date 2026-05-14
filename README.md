@@ -1,2 +1,2 @@
-# TGIF-
+# TGIF
 TGIF  AI
