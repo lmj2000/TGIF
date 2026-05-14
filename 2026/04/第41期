@@ -1,0 +1,13 @@
+### The Anatomy of an Agent Harness
+https://x.com/akshay_pachaar/article/2041146899319971922
+介绍了 Harness Engineering 的 12 个核心成分，包含编排循环、工具、记忆、上下文与状态管理、错误与安全、验证与多 Agent 协作等，决定了代理实际能力上限。
+作者对比 Anthropic、OpenAI、LangGraph 等实现，强调模型只是“CPU”，Harness 才是“操作系统”和脚手架
+
+### Track and compare Claude Code prompts across versions from 1.0.0 to latest.
+https://cchistory.mariozechner.at/?from=2.1.96&to=2.1.97
+对比 Claude Code 每个版本的 System Prompt 差异
+
+### Externalization in LLM Agents: A Unified Review of Memory, Skills, Protocols and Harness Engineering
+https://arxiv.org/abs/2604.08224
+LLM Agent 的构建正逐渐从改变模型权重转向围绕它们重组运行时。早期系统期望模型内部恢复的功能现在被外部化到记忆存储、可重用技能、交互协议以及使这些模块在实际中可靠运行的周边框架中。本文通过外部化这一视角来审视这一转变。借鉴认知人工制品的概念，我们认为代理基础设施之所以重要，不仅因为它增加了辅助组件，还因为它将硬认知负担转化为模型更可靠地解决的形式。在这种观点下，记忆将状态外部化到时间中，技能将程序性专业知识外部化，协议将交互结构外部化，而框架工程作为统一层协调它们实现受控执行。我们追溯了从权重到上下文再到框架的历史演变，分析了记忆、技能和协议作为三种不同但相互关联的外部化形式，并考察了它们在更大代理系统内部的相互作用。 我们进一步讨论了参数化能力与外部化能力之间的权衡，确定了自我进化适配器和共享代理基础设施等新兴方向，并探讨了在评估、治理以及模型与外部基础设施的长期共同进化中存在的开放性挑战。这一结果是一个系统级框架，用于解释为什么实际代理的进步越来越不仅依赖于更强的模型，还依赖于更好的外部认知基础设施。
+
